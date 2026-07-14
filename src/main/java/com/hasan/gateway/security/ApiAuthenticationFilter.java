@@ -40,7 +40,7 @@ public class ApiAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // 3. Hash the incoming key and check the database
-        String hashedIncomingKey = hashKey(rawApiKey);
+        String hashedIncomingKey = SecurityUtil.hashKey(rawApiKey);
         boolean keyExists = apiKeyRepo.findByKeyHash(hashedIncomingKey).isPresent();
 
         if (!keyExists) {
@@ -59,14 +59,4 @@ public class ApiAuthenticationFilter extends OncePerRequestFilter {
         response.getWriter().write("{\"error\": \"" + message + "\"}");
     }
 
-    // Re-using our SHA-256 logic to verify the key
-    private String hashKey(String rawKey) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawKey.getBytes());
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Failed to hash API key", e);
-        }
-    }
 }
