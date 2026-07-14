@@ -1,8 +1,11 @@
 package com.hasan.gateway.controllers;
 
 import com.hasan.gateway.dtos.RegistrationRequest;
+import com.hasan.gateway.entities.Client;
 import com.hasan.gateway.services.ClientService;
 import jakarta.validation.Valid;
+import java.util.UUID;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,16 +30,16 @@ public class ClientController {
 
     // 2. READ: Get info about a client by their ID
     @GetMapping("/{id}")
-    public ResponseEntity<?> getClient(@PathVariable Long id) {
+    public ResponseEntity<?> getClient(@PathVariable UUID id) {
         // Calls the service, returns a 200 OK with the client data as JSON
-        Object clientData = clientService.findById(id);
+        Client clientData = clientService.findById(id);
         return ResponseEntity.ok(clientData);
     }
 
     // 3. UPDATE: Change their tier (e.g., upgrade to PRO)
     @PutMapping("/{id}/tier")
     public ResponseEntity<String> updateTier(
-            @PathVariable Long id, 
+            @PathVariable UUID id, 
             @RequestParam String newTier) {
         
         clientService.updateTier(id, newTier);
@@ -45,9 +48,8 @@ public class ClientController {
 
     // 4. DELETE: Ban a client or remove their access
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteClient(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteClient(@PathVariable UUID id) {
         clientService.deleteById(id);
-        // 204 No Content is the REST standard for a successful deletion
         return ResponseEntity.noContent().build(); 
     }
 }
