@@ -56,6 +56,28 @@ public class ClientService {
         return rawApiKey;
     }
 
+    public Client findById(UUID id) {
+        return clientRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Client not found with id: " + id));
+    }
+
+    // 2. Update Tier
+    @Transactional
+    public Client updateTier(UUID id, String newTier) {
+        Client client = findById(id);
+        client.setTierType(newTier);
+        return clientRepo.save(client);
+    }
+
+    // 3. Delete by ID
+    @Transactional
+    public void deleteById(UUID id) {
+        if (!clientRepo.existsById(id)) {
+            throw new RuntimeException("Cannot delete: Client not found with id: " + id);
+        }
+        clientRepo.deleteById(id);
+    }
+
     // Internal Security Method: SHA-256 Hashing
     private String hashKey(String plainTextKey) {
         try {
