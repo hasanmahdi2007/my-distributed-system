@@ -27,9 +27,10 @@ public class ClientController {
 
     // 2. READ: Get info about a client by their ID
     @GetMapping("/{id}")
-    public ResponseEntity<Object> getClient(@PathVariable Long id) {
-        // You would call clientService.findById(id) here
-        return ResponseEntity.ok("Data for client " + id);
+    public ResponseEntity<?> getClient(@PathVariable Long id) {
+        // Calls the service, returns a 200 OK with the client data as JSON
+        Object clientData = clientService.findById(id);
+        return ResponseEntity.ok(clientData);
     }
 
     // 3. UPDATE: Change their tier (e.g., upgrade to PRO)
@@ -37,14 +38,16 @@ public class ClientController {
     public ResponseEntity<String> updateTier(
             @PathVariable Long id, 
             @RequestParam String newTier) {
-        // You would call clientService.updateTier(id, newTier) here
-        return ResponseEntity.ok("Client " + id + " upgraded to " + newTier);
+        
+        clientService.updateTier(id, newTier);
+        return ResponseEntity.ok("Client " + id + " successfully upgraded to " + newTier + " tier.");
     }
 
     // 4. DELETE: Ban a client or remove their access
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteClient(@PathVariable Long id) {
-        // You would call clientService.deleteById(id) here
-        return ResponseEntity.noContent().build();
+        clientService.deleteById(id);
+        // 204 No Content is the REST standard for a successful deletion
+        return ResponseEntity.noContent().build(); 
     }
 }
