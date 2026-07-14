@@ -1,5 +1,6 @@
 package com.hasan.gateway.services;
 
+import com.hasan.gateway.security.SecurityUtil;
 import com.hasan.gateway.entities.ApiKey;
 import com.hasan.gateway.entities.Client;
 import com.hasan.gateway.repos.ApiKeyRepo;
@@ -36,7 +37,7 @@ public class ClientService {
         String rawApiKey = "sk_live_" + UUID.randomUUID().toString().replace("-", "");
 
         // 3. Hash the key securely
-        String hashedKey = hashKey(rawApiKey);
+        String hashedKey = SecurityUtil.hashKey(rawApiKey);
 
         // 4. Create and configure the ApiKey entity
         ApiKey apiKey = new ApiKey();
@@ -76,16 +77,5 @@ public class ClientService {
             throw new RuntimeException("Cannot delete: Client not found with id: " + id);
         }
         clientRepo.deleteById(id);
-    }
-
-    // Internal Security Method: SHA-256 Hashing
-    private String hashKey(String plainTextKey) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(plainTextKey.getBytes());
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to hash API key", e);
-        }
     }
 }
