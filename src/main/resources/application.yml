@@ -19,15 +19,15 @@ spring:
 
   # --- 3. MAIN DATABASE (PostgreSQL for API Keys & Authentication) ---
   datasource:
-    url: jdbc:postgresql://localhost:5432/hasan_database
-    username: hasan_database
-    password: data7227
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: Hassouna10:)D
     driver-class-name: org.postgresql.Driver
 
   # --- 4. ORM SETTINGS (JPA / Hibernate) ---
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
