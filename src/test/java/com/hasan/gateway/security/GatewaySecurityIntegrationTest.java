@@ -11,9 +11,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
-        "spring.datasource.url=jdbc:postgresql://localhost:5432/your_database_name",
+        "spring.datasource.url=jdbc:postgresql://localhost:5432/postgres",
         "spring.datasource.username=postgres",
-        "spring.datasource.password=your_real_password" 
+        "spring.datasource.password=Hassouna10:)D" 
     }
 )
 public class GatewaySecurityIntegrationTest {
