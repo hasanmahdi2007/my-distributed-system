@@ -18,6 +18,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+
+// shoould create multiple instances for more productivity
 @Service
 public class TelemetryStreamConsumer {
 
