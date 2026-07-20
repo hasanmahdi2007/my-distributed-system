@@ -18,8 +18,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-
-// shoould create multiple instances for more productivity
+// multiple instances should be created for more productivity
 @Service
 public class TelemetryStreamConsumer {
 
@@ -61,18 +60,55 @@ public class TelemetryStreamConsumer {
         StreamReceiver<String, MapRecord<String, String, String>> receiver = 
                 StreamReceiver.create(redisConnectionFactory, options);
 
-        log.info("Analytics Engine started listening to telemetry:stream for batches...");
+        log.info("Analytics Engine started listening to telemetry:stream for batches (Manual ACK enabled)...");
 
         // 3. THE ACTUAL PRODUCTION BATCH COLLECTOR
-        receiver.receiveAutoAck(
+        // Using receive() instead of receiveAutoAck() to keep logs pending in Redis
+        receiver.receive(
                 Consumer.from("analytics-group", "engine-instance-1"), 
                 StreamOffset.create("telemetry:stream", ReadOffset.lastConsumed())
         )
-        .map(this::convertRecordToEntity)
         .bufferTimeout(50, Duration.ofSeconds(3)) // The collector: waits for 50 records OR 3 seconds
         .publishOn(Schedulers.boundedElastic())   // The thread hand-off for safety
-        .doOnNext(this::saveBatchToDatabase)      // The PostgreSQL bulk save
+        .doOnNext(this::processAndAckBatch)       // Transactional save and manual ACK
         .subscribe();
+    }
+
+    // ==========================================
+    // TRANSACTIONAL PROCESSING
+    // ==========================================
+
+    private void processAndAckBatch(List<MapRecord<String, String, String>> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+
+        // Convert the raw Redis records into Java Entities
+        List<ApiRequestLog> entities = batch.stream()
+                .map(this::convertRecordToEntity)
+                .toList();
+
+        try {
+            // Step 1: Attempt the Database Save
+            repository.saveAll(entities);
+            log.info("Successfully bulk inserted {} records into PostgreSQL.", entities.size());
+
+            // Step 2: Extract the unique Redis IDs of the exact messages we just saved
+            String[] recordIds = batch.stream()
+                    .map(record -> record.getId().getValue())
+                    .toArray(String[]::new);
+
+            // Step 3: Manually Acknowledge ONLY after DB success
+            redisConnectionFactory.getReactiveConnection()
+                    .streamCommands()
+                    .xAck(java.nio.ByteBuffer.wrap("telemetry:stream".getBytes()), "analytics-group", recordIds)
+                    .subscribe(); 
+
+        } catch (Exception e) {
+            // If the DB crashes, we NEVER reach the ACK step.
+            // Redis safely keeps all logs in the Pending Entries List (PEL) to be retried later.
+            log.error("Database save failed! Logs remain in Redis PEL. Error: {}", e.getMessage());
+        }
     }
 
     // ==========================================
@@ -95,12 +131,5 @@ public class TelemetryStreamConsumer {
         logEntry.setApiKey(map.get("apiKey"));
         
         return logEntry;
-    }
-
-    private void saveBatchToDatabase(List<ApiRequestLog> batch) {
-        if (!batch.isEmpty()) {
-            repository.saveAll(batch);
-            log.info("Successfully bulk inserted {} records into PostgreSQL.", batch.size());
-        }
     }
 }
