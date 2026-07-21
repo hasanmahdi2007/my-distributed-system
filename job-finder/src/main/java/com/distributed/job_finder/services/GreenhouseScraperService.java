@@ -1,11 +1,15 @@
 package com.distributed.job_finder.services;
 
 import com.distributed.job_finder.dtos.JobDto;
+import com.distributed.job_finder.dtos.greenhouse.GreenhouseJobResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.stream.ObjectRecord;
+import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+
 import java.util.UUID;
 
 @Slf4j
@@ -14,8 +18,7 @@ public class GreenhouseScraperService {
 
     private final WebClient webClient;
     private final RedisTemplate<String, Object> redisTemplate;
-    
-    // The Redis stream key where we will dump incoming jobs
+
     private static final String JOB_INGESTION_STREAM = "job:ingestion:stream";
 
     @Autowired
@@ -25,9 +28,7 @@ public class GreenhouseScraperService {
     }
 
     /**
-     * Reaches out to a specific company's Greenhouse job board.
-     * @param companyId The UUID of the company from our database
-     * @param boardToken The unique Greenhouse token for the company (e.g., "careem", "talabat")
+     * Reaches out to a specific company's Greenhouse board and pushes scraped jobs to Redis Stream.
      */
     public void fetchJobsFromGreenhouse(UUID companyId, String boardToken) {
         String greenhouseApiUrl = "https://boards-api.greenhouse.io/v1/boards/" + boardToken + "/jobs";
@@ -37,14 +38,41 @@ public class GreenhouseScraperService {
         webClient.get()
                 .uri(greenhouseApiUrl)
                 .retrieve()
-                // For now, we will grab it as a raw String to see the structure
-                .bodyToMono(String.class)
-                .doOnSuccess(jsonResponse -> {
-                    log.info("Successfully fetched data for {}", boardToken);
-                    // Next up: We will parse this JSON string into our JobDto
-                    // and push it to the redisTemplate!
+                // WebFlux automatically parses the JSON array into our GreenhouseJobResponse record
+                .bodyToMono(GreenhouseJobResponse.class)
+                .doOnSuccess(response -> {
+                    if (response != null && response.jobs() != null) {
+                        log.info("Fetched {} jobs from Greenhouse for {}", response.jobs().size(), boardToken);
+
+                        // Process each job and slap it onto the Redis Stream
+                        response.jobs().forEach(ghJob -> {
+                            JobDto jobDto = new JobDto(
+                                    String.valueOf(ghJob.id()),
+                                    companyId,
+                                    ghJob.title(),
+                                    ghJob.location() != null ? ghJob.location().name() : "Remote / Unspecified",
+                                    "General", // Department placeholder
+                                    ghJob.absoluteUrl(),
+                                    "" // Full description can be loaded on demand or detail endpoint
+                            );
+
+                            pushToRedisStream(jobDto);
+                        });
+                    }
                 })
-                .doOnError(error -> log.error("Failed to fetch from {}: {}", boardToken, error.getMessage()))
-                .subscribe(); // Non-blocking execution
+                .doOnError(error -> log.error("Failed to fetch jobs for board {}: {}", boardToken, error.getMessage()))
+                .subscribe(); // Non-blocking async execution
+    }
+
+    /**
+     * Publishes a JobDto ticket to the Redis Stream.
+     */
+    private void pushToRedisStream(JobDto jobDto) {
+        ObjectRecord<String, JobDto> record = StreamRecords.newRecord()
+                .ofObject(jobDto)
+                .withStreamKey(JOB_INGESTION_STREAM);
+
+        redisTemplate.opsForStream().add(record);
+        log.debug("Pushed job ticket to Redis Stream: {}", jobDto.atsJobId());
     }
 }
